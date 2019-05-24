@@ -1,6 +1,8 @@
 
 pub mod bsr {
 
-    pub struct BSRObject {}
+    pub struct BSRObject {
+        
+    }
 
 }
