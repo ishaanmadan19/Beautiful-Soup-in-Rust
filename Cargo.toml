@@ -1,5 +1,5 @@
 [package]
-name = "BSR"
+name = "bsr"
 version = "0.1.0"
 authors = ["Ishaan Madan <ishaanmadan2020@u.northwestern.edu>"]
 edition = "2018"
