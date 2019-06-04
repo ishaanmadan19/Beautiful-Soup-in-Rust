@@ -5,3 +5,4 @@ authors = ["Ishaan Madan <ishaanmadan2020@u.northwestern.edu>", "David Nelson <d
 edition = "2018"
 
 [dependencies]
+nom = "4.2.3"
