@@ -1,0 +1,32 @@
+ 
+
+in some situations you dont want to vector to be constantly allocating, with very big html content
+when an iterator is empty you can reuse it
+vectors dont automatically shrink
+
+implement into iter on the reference
+
+continuation passing style
+
+
+Additional suggestions
+RC slices, alternative to box slice, get rc to subtree instead of borrowing, or arcs
+rayon iterator arcs
+
+improve predicate formats in searches
+ trait to describe search
+ could be 2 methods: ref to subtree w/ y/n, or ref to subtree and gets children
+ dont implement trait by hand, create structs that do it in specific way
+     e.g. tag_is, has_attr, attr_matches (attr, and predicate)
+ xquery for examples
+ hamcrest, api of pattern matchers
+
+
+
+Would be more clever and better to allow these functions to be applied on top of each other
+I don't believe that works currently...
+
+filter that exists outside, if inside you can use it to prune to improve speed
+internal literation: visit function that takes closure and applies to relevant nodes, no need for vec/stack
+write recur function to do, because html nesting is tractable
+then could use iterator for control, or visitor for less memory use

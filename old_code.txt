@@ -1,4 +1,62 @@
 
+
+
+
+
+
+    // Do we also need into iterator to produce collections?
+    impl<'a> Iterator for ParseTree<'a> {
+        // this is a DFS iterator...
+        type Item = &'a HTMLContent;
+        fn next(&mut self) -> Option<&'a HTMLContent> {
+            let stack = match self.stack.as_mut() {
+                None => {
+                    let mut temp_stack = Vec::new();
+                    for i in self.roots.iter().rev() {
+                        temp_stack.push(i);
+                    }
+                    self.stack = Some(temp_stack);
+                    self.stack.unwrap().as_mut()
+                },
+                Some(s) => s
+            };
+            if let Some(node) = stack.pop() {
+                // filter that exists outside, if inside you can use it to prune to improve speed
+                // internal literation: visit function that takes closure and applies to relevant nodes, no need for vec/stack
+                // write recur function to do, because html nesting is tractable
+                // then could use iterator for control, or visitor for less memory use
+                if let HTMLContent::Tag(tag_box) = node { //add children to stack if tag object
+//                    let children = tag_box.content.iter().rev();
+                    for child in (**tag_box).content.iter().rev() {
+                        stack.push(child);
+                    }
+                }
+                return Some(node)
+            }
+//            else {
+            self.stack = None; // else is not necessary? is it idiomatic?
+            None
+//            }
+
+        }
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 pub mod bsr {
 
     // if we do a streaming/event based solution. it says: parsing html is painn but don;t want to
