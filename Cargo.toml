@@ -6,4 +6,6 @@ edition = "2018"
 
 [dependencies]
 nom = "4.2.3"
+pest = "2.0"
+pest_derive = "2.0"
 # reqwest = "0.9.17"

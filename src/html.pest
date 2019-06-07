@@ -1,0 +1,30 @@
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+
+tag_type = @{ ASCII_ALPHA ~ ASCII_ALPHANUMERIC* }
+
+start_tag = { "<" ~ tag_type ~ attribute* ~ ">" }
+
+attribute = { name ~ "=" ~ "\"" ~ value ~ "\""}
+
+name = @{ ASCII_ALPHA ~ ( ASCII_ALPHA | "-" )* }
+
+value = @{ (!("\"" | "&") ~ ANY |
+           "&" ~ (^"quot;" | ^"amp;" | "#34;" | "#38;"))*
+}
+
+end_tag = { "</" ~ tag_type ~ ">" }
+
+raw = @{ (!("<" | ">" | "\"") ~ ANY)* }
+
+content = {
+    raw ~ (html_element ~ raw)*
+}
+
+html_element = {
+    (start_tag ~ end_tag) |
+    (start_tag ~ content ~ end_tag)
+}
+
+html = _{
+    SOI ~ html_element ~ EOI
+}
