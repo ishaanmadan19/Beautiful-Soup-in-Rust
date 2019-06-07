@@ -1,34 +1,34 @@
+
+extern crate reqwest;
+
+extern crate pest;
+
+
 use std::collections::HashMap;
 use pest::iterators::Pair;
 use pest::error::Error;
-
-extern crate pest;
-#[macro_use]
-extern crate pest_derive;
-
 use pest::Parser;
+use pest_derive::Parser;
+
 
 #[derive(Parser)]
 #[grammar = "html.pest"]
-struct HTMLParser;
+pub struct HTMLParser;
 
-#[derive(Debug, PartialEq)]
-struct ParseTree {
-    root: HTMLContent,
-}
 
-#[derive(Debug, PartialEq)]
-struct Tag {
-    tag_type: String,
-    attributes: HashMap<String, String>,
-    content: Vec<HTMLContent>,
-}
+//use crate::HTMLParser;
+//use crate::tree::ParseTree;
+//use crate::tree::Tag;
+//use crate::tree::HTMLContent;
 
-#[derive(Debug, PartialEq)]
-enum HTMLContent {
-    Raw(String),
-    Tag(Box<Tag>),
-}
+
+//use super::tree::ParseTree;
+//pub use super::tree::Tag;
+//pub use super::tree::HTMLContent;
+
+use tree::ParseTree; // how do i get access to structs in tree.rs???
+use tree::Tag;
+use tree::HTMLContent;
 
 // fn main() {
 //     let html = r#"<html></html>"#;
@@ -36,8 +36,27 @@ enum HTMLContent {
 //     println!("{:?}", res);
 // }
 
+pub fn get_and_parse_html(url: &str) -> Result<ParseTree, Error<Rule>> {
+    parse_html(get_html(url))
+}
+
+fn get_html(url: &str) -> &str {
+    // do error handling instead of unwrap later
+    let foo = reqwest::get(url).unwrap().text().unwrap();
+    r#"<body>
+        <div>
+            <h1>foo</h1>
+            <a>link</a>
+        </div>
+        <div>
+            <p>baz<a>bar</a>qux</p>
+        </div>
+    </body>"#
+}
+
 /// MAIN FUNCTION:
 /// See parse_full_html_test1 and parse_full_html_test2 for examples.
+
 fn parse_html(unparsed_html: &str) -> Result<ParseTree, Error<Rule>> {
     let parsed_html = HTMLParser::parse(Rule::html, unparsed_html)?.next().unwrap();
 
@@ -144,7 +163,7 @@ fn parse_end_tag(end_rule: Pair<Rule>) -> &str {
 #[cfg(test)]
 mod parse_tests {
     use super::*;
-    
+
     fn generate_hashmap(tuples: Vec<(&str, &str)>) -> HashMap<String, String> {
         let mut hm = HashMap::new();
         for tup in tuples {
@@ -201,7 +220,7 @@ mod parse_tests {
                             "<div>FOO</div>")
                             .unwrap().next().unwrap();
         let res = parse_html_element(html_element);
-        
+
         let c = HTMLContent::Raw(String::from("FOO"));
         assert_element(res, "div", vec![], vec![c]);
     }
@@ -248,8 +267,8 @@ mod parse_tests {
     #[test]
     fn parse_full_html_test1() {
         let raw_html =
-            r#"<html>          
-            <head>    
+            r#"<html>
+            <head>
                 <title>   TITLE  </title>
             </head>
             <body>
@@ -261,7 +280,7 @@ mod parse_tests {
                     <a href="https://www.theatlantic.com/" id="link">Atlantic</a>
                 </div>
                 <div id="empty">
-                    
+
                 </div>
             SOME FINAL TEXT
             </body>
