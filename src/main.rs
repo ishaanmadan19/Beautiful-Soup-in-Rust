@@ -1,5 +1,6 @@
 extern crate bsr;
 use bsr::parse::{parse_html}; // might need to add `get_and_parse_html` later
+use bsr::tree::{HTMLContent};
 
 fn main() {
 
@@ -13,9 +14,8 @@ fn main() {
 	</div>
 </body>"#;
 
-    let res = parse_html(raw_html).unwrap();
+    let tree = parse_html(raw_html).unwrap();
 
-    println!("{:?}", res);
 
 //    let pre_iter = rusty_soup::PtPreOrderIter::new(&tree);
 //    let level_iter = rusty_soup::PtLevelOrderIter::new(&tree);
@@ -43,27 +43,27 @@ fn main() {
 //    println!("\n PreOrder Traversal:");
 //    for i in tree2.unwrap().pre_iter() {
 //        match i {
-//            bsr::HTMLContent::Raw(s) => println!("{}", s),
-//            bsr::HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
+//            HTMLContent::Raw(s) => println!("{}", s),
+//            HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
 //        }
 //    }
 
 
-//    println!("\n PreOrder Traversal:");
-//    for i in tree.pre_iter() {
-//        match i {
-//            bsr::HTMLContent::Raw(s) => println!("{}", s),
-//            bsr::HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
-//        }
-//    }
-//
-//    println!("\nLevelOrder Traversal:");
-//    for i in tree.level_iter() {
-//        match i {
-//            bsr::HTMLContent::Raw(s) => println!("{}", s),
-//            bsr::HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
-//        }
-//    }
+   println!("\n PreOrder Traversal:");
+   for i in tree.pre_iter() {
+       match i {
+           HTMLContent::Raw(s) => println!("{}", s),
+           HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
+       }
+   }
+
+   println!("\nLevelOrder Traversal:");
+   for i in tree.level_iter() {
+       match i {
+           HTMLContent::Raw(s) => println!("{}", s),
+           HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
+       }
+   }
 
 
 }
