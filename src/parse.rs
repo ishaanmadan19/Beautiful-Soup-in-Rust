@@ -1,8 +1,9 @@
-
 extern crate reqwest;
-
 extern crate pest;
-
+extern crate pest_derive;
+use super::{
+    tree::{ParseTree, Tag, HTMLContent},
+};
 
 use std::collections::HashMap;
 use pest::iterators::Pair;
@@ -10,31 +11,9 @@ use pest::error::Error;
 use pest::Parser;
 use pest_derive::Parser;
 
-
 #[derive(Parser)]
 #[grammar = "html.pest"]
 pub struct HTMLParser;
-
-
-//use crate::HTMLParser;
-//use crate::tree::ParseTree;
-//use crate::tree::Tag;
-//use crate::tree::HTMLContent;
-
-
-//use super::tree::ParseTree;
-//pub use super::tree::Tag;
-//pub use super::tree::HTMLContent;
-
-use tree::ParseTree; // how do i get access to structs in tree.rs???
-use tree::Tag;
-use tree::HTMLContent;
-
-// fn main() {
-//     let html = r#"<html></html>"#;
-//     let res = parse_html(html).unwrap();
-//     println!("{:?}", res);
-// }
 
 pub fn get_and_parse_html(url: &str) -> Result<ParseTree, Error<Rule>> {
     parse_html(get_html(url))
@@ -42,7 +21,7 @@ pub fn get_and_parse_html(url: &str) -> Result<ParseTree, Error<Rule>> {
 
 fn get_html(url: &str) -> &str {
     // do error handling instead of unwrap later
-    let foo = reqwest::get(url).unwrap().text().unwrap();
+    let _foo = reqwest::get(url).unwrap().text().unwrap();
     r#"<body>
         <div>
             <h1>foo</h1>
@@ -54,10 +33,14 @@ fn get_html(url: &str) -> &str {
     </body>"#
 }
 
-/// MAIN FUNCTION:
-/// See parse_full_html_test1 and parse_full_html_test2 for examples.
 
-fn parse_html(unparsed_html: &str) -> Result<ParseTree, Error<Rule>> {
+/// Returns a `ParseTree` that parses the valid HTML.
+/// 
+/// # Example
+/// use bsr::parse;
+/// let raw_html = "<html></html>";
+/// let parsed = parse_html(raw_html);
+pub fn parse_html(unparsed_html: &str) -> Result<ParseTree, Error<Rule>> {
     let parsed_html = HTMLParser::parse(Rule::html, unparsed_html)?.next().unwrap();
 
     Ok(ParseTree {
@@ -70,14 +53,10 @@ fn parse_html_element(html_element_rule: Pair<Rule>) -> Tag {
         Rule::html_element => {
             let mut inner_rule = html_element_rule.into_inner();
             let start_tag = inner_rule.next().unwrap();
-
-            // need to parse start_tag in either case
             let (start_tag_type, attributes) = parse_start_tag(start_tag);
-
             let next_pair = inner_rule.next().unwrap();
 
             match next_pair.as_rule() {
-                // case 1: html element empty
                 Rule::end_tag => {
                     // what is the idiomatic way of doing this
                     if start_tag_type == parse_end_tag(next_pair) {
@@ -90,15 +69,13 @@ fn parse_html_element(html_element_rule: Pair<Rule>) -> Tag {
                         panic!("unmatched tags");
                     }
                 },
-                // case 2: content
                 Rule::content => {
                     if start_tag_type == parse_end_tag(inner_rule.next().unwrap()) {
                         let mut contents = Vec::new();
-
                         let content_inner = next_pair.into_inner();
+
                         for content_pair in content_inner {
                             match content_pair.as_rule() {
-                                // content is raw text
                                 Rule::raw => {
                                     let raw = content_pair.as_str().trim();
                                     if !raw.is_empty() {
@@ -112,9 +89,8 @@ fn parse_html_element(html_element_rule: Pair<Rule>) -> Tag {
                                 },
                                 _ => unreachable!(),
                             }
-
                         }
-
+                        
                         return Tag {
                             tag_type: start_tag_type,
                             attributes: attributes,

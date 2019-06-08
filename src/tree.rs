@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use crate::parse::get_and_parse_html; // how do i get access to functions in parse.rs???
+use super::parse::get_and_parse_html;
 
 #[derive(Debug, PartialEq)]
 pub struct ParseTree {
@@ -38,7 +38,7 @@ impl Tag {
 impl ParseTree {
 
     pub fn new(url: &str) -> Self {
-        parse::get_and_parse_html(url).unwrap()
+        get_and_parse_html(url).unwrap()
     }
 
     pub fn pre_iter(&self) -> impl Iterator<Item = &HTMLContent> {
