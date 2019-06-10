@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 
 use super::parse::get_and_parse_html;
+use std::result::Result;
 
 #[derive(Debug, PartialEq)]
 pub struct ParseTree {
@@ -21,12 +22,34 @@ pub enum HTMLContent {
     Tag(Box<Tag>),
 }
 
+// Maybe have some sort of string condition format to parse
+// is PreOrder by default?
+// e.g. (tag=a, attrs=href,align)
+// (tag=a|h1)
+// ((tag=a & attr_val=(align,center)) | tag=h1)
+//
+// tree.search(Pre or Level, condition string) calls Searcher constructor which returns iterator?
+// OR Searcher::new(Pre or Level, condition string) and searcher1(tree)
+// OR BOTH!!
+pub struct Searcher {
+    // probably just create the closure upon creation, no need to store values...
+//    is_pre_ord: bool,
+//    tag_types: Vec<&'a str>,
+//    has_attrs: Vec<&'a str>,
+//    attr_values: Vec<(&'a str,&'a str)>,
+}
+
 pub struct PtPreOrderIter<'a> {
     stack: Vec<&'a HTMLContent>,
 }
 
 pub struct PtLevelOrderIter<'a> {
     queue: VecDeque<&'a HTMLContent>,
+}
+
+pub struct TreeIter<'a> {
+    is_pre_order: bool,
+    state: VecDeque<&'a HTMLContent>,
 }
 
 impl Tag {
@@ -42,127 +65,97 @@ impl ParseTree {
     }
 
     pub fn pre_iter(&self) -> impl Iterator<Item = &HTMLContent> {
-        PtPreOrderIter::new(&self.root)
+        TreeIter::new(true,&self.root)
     }
 
     pub fn level_iter(&self) -> impl Iterator<Item = &HTMLContent> {
-        PtLevelOrderIter::new(&self.root)
+        TreeIter::new(false,&self.root)
+    }
+
+    pub fn iter(&self, is_pre_order: bool) -> impl Iterator<Item = &HTMLContent> {
+        TreeIter::new(is_pre_order, &self.root)
+    }
+
+    pub fn search(&self, is_pre_order: bool, search_pattern: &str) -> Result<impl Iterator<Item = &HTMLContent>, &'static str> {
+        match Searcher::generate_closure(search_pattern) {
+            Err(e) => Err(e),
+            Ok(c) => Ok(self.iter(is_pre_order).filter(c))
+        }
     }
 
 }
 
+// duplicate code from tree, is it worth distinguishing???
 impl HTMLContent {
     pub fn pre_iter(&self) -> impl Iterator<Item = &HTMLContent> {
-        PtPreOrderIter::new(self)
+        TreeIter::new(true,self)
     }
 
     pub fn level_iter(&self) -> impl Iterator<Item = &HTMLContent> {
-        PtLevelOrderIter::new(self)
+        TreeIter::new(false,self)
     }
-}
 
-impl<'a> PtPreOrderIter<'a> {
-    pub fn new(content: &'a HTMLContent) -> Self {
-        PtPreOrderIter {
-            stack: vec![content],
+    pub fn iter(&self, is_pre_order: bool) -> impl Iterator<Item = &HTMLContent> {
+        TreeIter::new(is_pre_order, self)
+    }
+
+    pub fn search(&self, is_pre_order: bool, search_pattern: &str) -> Result<impl Iterator<Item = &HTMLContent>, &'static str> {
+        match Searcher::generate_closure(search_pattern) {
+            Err(e) => Err(e),
+            Ok(c) => Ok(self.iter(is_pre_order).filter(c))
         }
     }
-
-    // why can't use &self
-    pub fn find_tags(self, html_tag_type: String) -> impl Iterator<Item = &'a HTMLContent> {
-        self.filter(move |node| match node { // do i need to deref the tag/maybe patter match of of box?
-            HTMLContent::Raw(_) => false,
-            HTMLContent::Tag(box_tag) => box_tag.tag_type == html_tag_type
-        })
-    }
-
-    // why can't use &self
-    pub fn find_tags2(self, html_tag_type: String) -> impl Iterator<Item = &'a Tag> {
-        self.filter_map(move|node|   if let HTMLContent::Tag(box_tag) = node { // i box pattern match needed/good?
-            if (**box_tag).tag_type == html_tag_type {
-                Some(&(**box_tag))
-            }
-            else {
-                None
-            }
-        } else {
-            None
-        })
-    }
-
-//        // Does this and the above automatically return &Item???
-//        pub fn find_text(&self) -> impl Iterator<Item = String> {
-//            // Which of the two is correct/better?
-//
-////            self.iter().map(move |node| match node {
-////                HTMLContent::Raw(s) => s,
-////                HTMLContent::Tag(box_tag) => None
-////            });
-//
-//            self.iter().filter_map(|node|   if let HTMLContent::Raw(s) = node {
-//                Some(s)
-//            } else {
-//                None
-//            })
-//        }
-
-//        // Again, return HTMLContent's or Tag's ?
-//        pub fn find_attrs(&self, attr: String, value: String) -> impl Iterator<Item = HTMLContent> {
-//            self.iter().filter(move |node| match node { // do i need to deref the tag/maybe patter match of of box?
-//                HTMLContent::Raw(_) => false,
-//                HTMLContent::Tag(box_tag) => {
-//                    match box_tag.attributes.get(&attr) {
-//                        Some(val) => *val==value,
-//                        None => false
-//                    }
-//                }
-//            })
-//        }
 }
 
-impl<'a> Iterator for PtPreOrderIter<'a> {
+impl Searcher {
+
+    fn generate_closure(pattern: &str) -> Result<impl Fn(&&HTMLContent) -> bool,&'static str> {
+        if pattern == "raw" {
+            let foo = |node: &&HTMLContent| match **node {
+                HTMLContent::Tag(_) => false,
+                HTMLContent::Raw(_) => true
+            };
+            Ok(foo)
+        }
+        else {
+            Err("could not parse search pattern")
+        }
+    }
+}
+
+impl<'a> Iterator for TreeIter<'a> {
     type Item = &'a HTMLContent;
     fn next(&mut self) -> Option<&'a HTMLContent> {
-        if let Some(node) = self.stack.pop() {
+        if let Some(node) = self.state.pop_front() {
             if let HTMLContent::Tag(tag_box) = node { //add children to stack if tag object
-                for child in (**tag_box).content.iter().rev() {
-                    self.stack.push(child);
+                if self.is_pre_order {
+                    for child in (**tag_box).content.iter().rev() {
+                        self.state.push_front(child);
+                    }
                 }
+                else {
+                    for child in (**tag_box).content.iter() {
+                        self.state.push_back(child);
+                    }
+                }
+
             }
             return Some(node)
         }
         else {
             None
         }
-
     }
 }
 
-impl<'a> PtLevelOrderIter<'a> {
-    pub fn new(content: &'a HTMLContent) -> Self {
+impl<'a> TreeIter<'a> {
+    pub fn new(is_pre_order: bool, content: &'a HTMLContent) -> Self {
         let mut temp_queue = VecDeque::new();
         temp_queue.push_back(content);
-        PtLevelOrderIter {
-            queue: temp_queue,
+        TreeIter {
+            is_pre_order,
+            state: temp_queue,
         }
-    }
-}
-
-impl<'a> Iterator for PtLevelOrderIter<'a> {
-    type Item = &'a HTMLContent;
-    fn next(&mut self) -> Option<&'a HTMLContent> {
-        if let Some(node) = self.queue.pop_front() {
-            if let HTMLContent::Tag(tag_box) = node {
-                for child in (**tag_box).content.iter() {
-                    self.queue.push_back(child);
-                }
-            }
-            return Some(node)
-        }
-        else {
-            None
-        }
-
     }
 }
 

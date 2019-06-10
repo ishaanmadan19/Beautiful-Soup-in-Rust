@@ -16,54 +16,30 @@ fn main() {
 
     let tree = parse_html(raw_html).unwrap();
 
+    println!("\n ");
 
-//    let pre_iter = rusty_soup::PtPreOrderIter::new(&tree);
-//    let level_iter = rusty_soup::PtLevelOrderIter::new(&tree);
-//    let links = rusty_soup::PtPreOrderIter::new(&tree).find_tags("a".to_owned());
+    for i in tree.search(true, "raw").unwrap() {
+        match i {
+            HTMLContent::Raw(s) => println!("{}", s),
+            HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
+        }
+    }
 
-//    println!("Anchors in html:");
-//    for i in tree.pre_iter().find_tags("a".to_owned()) {
-//        match i {
-//            rusty_soup::HTMLContent::Raw(s) => println!("{}", s),
-//            rusty_soup::HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
-//        }
-//    }
-
-//    let raw_html = r#"<body>
-//            <div>
-//                <h1>foo</h1>
-//                <a>link</a>
-//            </div>
-//            <div>
-//                <p>baz<a>bar</a>qux</p>
-//            </div>
-//        </body>"#;
-//
-//    let tree2 = parse::parse_html(raw_html);
-//    println!("\n PreOrder Traversal:");
-//    for i in tree2.unwrap().pre_iter() {
-//        match i {
-//            HTMLContent::Raw(s) => println!("{}", s),
-//            HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
-//        }
-//    }
-
-
-   println!("\n PreOrder Traversal:");
-   for i in tree.pre_iter() {
+    println!("\nPreOrder Traversal:");
+    for i in tree.pre_iter() {
        match i {
            HTMLContent::Raw(s) => println!("{}", s),
            HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
        }
-   }
+    }
 
-   println!("\nLevelOrder Traversal:");
-   for i in tree.level_iter() {
+    println!("\nLevelOrder Traversal:");
+    for i in tree.level_iter() {
        match i {
            HTMLContent::Raw(s) => println!("{}", s),
            HTMLContent::Tag(box_tag) => println!("{}", (**box_tag).get_tag())
        }
-   }
+    }
 
 
 }
