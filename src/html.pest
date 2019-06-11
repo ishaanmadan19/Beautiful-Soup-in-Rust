@@ -4,6 +4,8 @@ tag_type = @{ ASCII_ALPHA ~ ASCII_ALPHANUMERIC* }
 
 start_tag = { "<" ~ tag_type ~ attribute* ~ ">" }
 
+self_closing_element = { "<" ~ tag_type ~ attribute* ~ "/>" }
+
 attribute = { name ~ "=" ~ "\"" ~ value ~ "\""}
 
 name = @{ ASCII_ALPHA ~ ( ASCII_ALPHA | "-" )* }
@@ -21,6 +23,7 @@ content = {
 }
 
 html_element = {
+    self_closing_element |
     (start_tag ~ end_tag) |
     (start_tag ~ content ~ end_tag)
 }

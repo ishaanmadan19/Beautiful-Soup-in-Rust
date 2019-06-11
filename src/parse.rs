@@ -71,52 +71,67 @@ fn parse_html_element(html_element_rule: Pair<Rule>) -> Tag {
     match html_element_rule.as_rule() {
         Rule::html_element => {
             let mut inner_rule = html_element_rule.into_inner();
-            let start_tag = inner_rule.next().unwrap();
-            let (start_tag_type, attributes) = parse_start_tag(start_tag);
-            let next_pair = inner_rule.next().unwrap();
+            let first_pair = inner_rule.next().unwrap();
+            let first_rule = first_pair.as_rule();
 
-            match next_pair.as_rule() {
-                Rule::end_tag => {
-                    // what is the idiomatic way of doing this
-                    if start_tag_type == parse_end_tag(next_pair) {
-                        return Tag {
-                            tag_type: start_tag_type,
-                            attributes: attributes,
-                            content: Vec::new(),
-                        };
-                    } else {
-                        panic!("unmatched tags");
+            let (start_tag_type, attributes) = parse_start_tag(first_pair);
+
+            match first_rule {
+                Rule::self_closing_element => {
+                    return Tag {
+                        tag_type: start_tag_type,
+                        attributes: attributes,
+                        content: Vec::new(),
                     }
                 },
-                Rule::content => {
-                    if start_tag_type == parse_end_tag(inner_rule.next().unwrap()) {
-                        let mut contents = Vec::new();
-                        let content_inner = next_pair.into_inner();
+                Rule::start_tag => {
+                    let second_pair = inner_rule.next().unwrap();
 
-                        for content_pair in content_inner {
-                            match content_pair.as_rule() {
-                                Rule::raw => {
-                                    let raw = content_pair.as_str().trim();
-                                    if !raw.is_empty() {
-                                        contents.push(HTMLContent::Raw(raw));
-                                    }
-                                },
-                                Rule::html_element => {
-                                    contents.push(HTMLContent::Tag(Box::new(
-                                        parse_html_element(content_pair)
-                                    )));
-                                },
-                                _ => unreachable!(),
+                    match second_pair.as_rule() {
+                        Rule::end_tag => {
+                            // what is the idiomatic way of doing this
+                            if start_tag_type == parse_end_tag(second_pair) {
+                                return Tag {
+                                    tag_type: start_tag_type,
+                                    attributes: attributes,
+                                    content: Vec::new(),
+                                };
+                            } else {
+                                panic!("unmatched tags");
                             }
-                        }
-                        
-                        return Tag {
-                            tag_type: start_tag_type,
-                            attributes: attributes,
-                            content: contents,
-                        };
-                    } else {
-                        panic!("unmatched tags");
+                        },
+                        Rule::content => {
+                            if start_tag_type == parse_end_tag(inner_rule.next().unwrap()) {
+                                let mut contents = Vec::new();
+                                let content_inner = second_pair.into_inner();
+
+                                for content_pair in content_inner {
+                                    match content_pair.as_rule() {
+                                        Rule::raw => {
+                                            let raw = content_pair.as_str().trim();
+                                            if !raw.is_empty() {
+                                                contents.push(HTMLContent::Raw(raw));
+                                            }
+                                        },
+                                        Rule::html_element => {
+                                            contents.push(HTMLContent::Tag(Box::new(
+                                                parse_html_element(content_pair)
+                                            )));
+                                        },
+                                        _ => unreachable!(),
+                                    }
+                                }
+                                
+                                return Tag {
+                                    tag_type: start_tag_type,
+                                    attributes: attributes,
+                                    content: contents,
+                                };
+                            } else {
+                                panic!("unmatched tags");
+                            }
+                        },
+                        _ => unreachable!(),
                     }
                 },
                 _ => unreachable!(),
@@ -128,7 +143,8 @@ fn parse_html_element(html_element_rule: Pair<Rule>) -> Tag {
 
 fn parse_start_tag(start_rule: Pair<Rule>) -> (&str, HashMap<&str, &str>) {
     match start_rule.as_rule() {
-        Rule::start_tag => {
+        Rule::start_tag
+        | Rule::self_closing_element => {
             let mut inner_rule = start_rule.into_inner();
             let start_tag_type = inner_rule.next().unwrap().as_str();
             let mut hm = HashMap::new();
@@ -170,7 +186,6 @@ mod parse_tests {
 
     fn assert_element(element: Tag, tag_name: &str, attributes: Vec<(&str, &str)>, content: Vec<HTMLContent>) {
         let attrs = generate_hashmap(attributes);
-
         let e = Tag {
             tag_type: tag_name,
             attributes: attrs,
@@ -188,14 +203,21 @@ mod parse_tests {
 
     #[test]
     fn parse_start_tag_attribute_test() {
-        let mut hm = HashMap::new();
-        hm.insert("href", "google.com");
-        hm.insert("id", "foo");
+        let hm = generate_hashmap(vec![("href", "google.com"), ("id", "foo")]);
 
         assert_eq!(("a", hm),
                     parse_start_tag(HTMLParser::parse(Rule::start_tag,
                                     "<a href=\"google.com\" id=\"foo\">")
                                     .unwrap().next().unwrap()));
+    }
+
+    #[test]
+    fn parse_self_closing_tag_test() {
+        let hm = generate_hashmap(vec![("href", "google.com"), ("foo", "bar")]);
+
+        assert_eq!(("br", hm),
+            parse_start_tag(HTMLParser::parse(Rule::self_closing_element, "<br href=\"google.com\" foo=\"bar\"/>")
+                                .unwrap().next().unwrap()));
     }
 
     #[test]
@@ -269,7 +291,7 @@ mod parse_tests {
             SOME INITIAL TEXT
                 <div id="id1">
                     <p>This is paragraph 1.</p>
-                    <p>This is paragraph 2.</p>
+                    <p>This is <br /> paragraph 2.</p>
                     <h3>Header!!</h3>
                     <a href="https://www.theatlantic.com/" id="link">Atlantic</a>
                 </div>
@@ -286,7 +308,8 @@ mod parse_tests {
         let initial_text = HTMLContent::Raw("SOME INITIAL TEXT");
         let final_text = HTMLContent::Raw("SOME FINAL TEXT");
         let p1 = HTMLContent::Raw("This is paragraph 1.");
-        let p2 = HTMLContent::Raw("This is paragraph 2.");
+        let p2_1 = HTMLContent::Raw("This is");
+        let p2_2 = HTMLContent::Raw("paragraph 2.");
         let h3 = HTMLContent::Raw("Header!!");
         let a = HTMLContent::Raw("Atlantic");
 
@@ -300,10 +323,15 @@ mod parse_tests {
             attributes: HashMap::new(),
             content: vec![p1],
         }));
+        let br = HTMLContent::Tag(Box::new(Tag {
+            tag_type: "br",
+            attributes: HashMap::new(),
+            content: vec![],
+        }));
         let p2 = HTMLContent::Tag(Box::new(Tag {
             tag_type: "p",
             attributes: HashMap::new(),
-            content: vec![p2],
+            content: vec![p2_1, br, p2_2],
         }));
         let h3 = HTMLContent::Tag(Box::new(Tag {
             tag_type: "h3",
