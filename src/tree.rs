@@ -39,17 +39,60 @@ pub struct Searcher {
 //    attr_values: Vec<(&'a str,&'a str)>,
 }
 
-pub struct PtPreOrderIter<'a> {
-    stack: Vec<&'a HTMLContent>,
-}
-
-pub struct PtLevelOrderIter<'a> {
-    queue: VecDeque<&'a HTMLContent>,
-}
-
 pub struct TreeIter<'a> {
     is_pre_order: bool,
     state: VecDeque<&'a HTMLContent>,
+}
+
+// If implemented this iter could allow for pruned search...
+// It probably has to be its own type, separate from tree iter if we want caching with TreeIter
+pub struct SearchTreeIter<'a, F: Fn(&HTMLContent) -> bool> {
+    is_pre_order: bool,
+    prune_closure: F,
+    state: VecDeque<&'a HTMLContent>,
+}
+
+// Potential implementation of cached iters over certain size threshold, maybe thresh is if created a root
+// Implement drop bool? and on drop trait?? to cache instead of drop when scope is exited
+// I dont think you can cache search iters though... because they have specific closure type on creation
+// potentially instead of start at root, way to check how much space has already been allocated to iter
+// might actually be optimal to always cache, ask Tov...
+
+// Who would even own this? mutable statics are unsafe so probably best to avoid
+// Iters might be able to refer to the cache in a struct variable? with RC and RefCell?
+// Could belong to the tree but we don't really want a separate cache for every HTML doc, is that the only way?
+
+// maybe have some sort of wrapper data structure to produce trees and such from
+// must produce trees from this func and holds the cache?
+// let bsr = BSRObject::new() // intialize
+// let tree = bsr.build_tree("url")
+// ... same subsequent interactions
+pub struct IterCache<'a> { // lifetimes may make it weird
+// maybe use boxes to prevent copying around? is that necessary?
+    // might not be able to use boxes, they indicate ownership right??? if so i think we should use them
+    cache: Vec<TreeIter<'a>>,
+}
+
+//impl<'a> Drop for TreeIter<'a> {
+//    fn drop(&mut self) {
+//
+//    }
+//}
+
+
+pub struct BSRObject<'a> {
+    cache: Vec<TreeIter<'a>>,
+}
+
+impl<'a> BSRObject<'a> {
+    pub fn new() -> Self {
+        BSRObject {
+            cache: Vec::new(),
+        }
+    }
+    pub fn build_tree(&self, url: &str) -> ParseTree {
+        ParseTree::new(url) //pass it cache ref?
+    }
 }
 
 impl Tag {
@@ -83,9 +126,17 @@ impl ParseTree {
         }
     }
 
+    // pruned search temp, should do it generically with similar pattern to example on no prune
+    pub fn search2(&self, is_pre_order: bool, search_pattern: &str) -> Result<impl Iterator<Item = &HTMLContent>, &'static str> {
+        match Searcher::generate_closure2(search_pattern) {
+            Err(e) => Err(e),
+            Ok((keep,prune)) => Ok(SearchTreeIter::new(is_pre_order,prune, &self.root).filter(keep))
+        }
+    }
+
 }
 
-// duplicate code from tree, is it worth distinguishing???
+// duplicate code from tree, is it worth distinguishing, maybe only have HTMLContent and no additional tree???
 impl HTMLContent {
     pub fn pre_iter(&self) -> impl Iterator<Item = &HTMLContent> {
         TreeIter::new(true,self)
@@ -110,12 +161,29 @@ impl HTMLContent {
 impl Searcher {
 
     fn generate_closure(pattern: &str) -> Result<impl Fn(&&HTMLContent) -> bool,&'static str> {
-        if pattern == "raw" {
+        if pattern == "raw" { // temp pattern...
             let foo = |node: &&HTMLContent| match **node {
                 HTMLContent::Tag(_) => false,
                 HTMLContent::Raw(_) => true
             };
             Ok(foo)
+        }
+        else {
+            Err("could not parse search pattern")
+        }
+    }
+
+    fn generate_closure2(pattern: &str) -> Result<(impl Fn(&&HTMLContent) -> bool, impl Fn(&HTMLContent) -> bool),&'static str> {
+        if pattern == "raw" { // temp pattern...
+            let foo = |node: &&HTMLContent| match **node {
+                HTMLContent::Tag(_) => false,
+                HTMLContent::Raw(_) => true
+            };
+            let bar = |node: &HTMLContent| match *node {
+                HTMLContent::Tag(_) => false,
+                HTMLContent::Raw(_) => false
+            };
+            Ok((foo,bar))
         }
         else {
             Err("could not parse search pattern")
@@ -154,6 +222,49 @@ impl<'a> TreeIter<'a> {
         temp_queue.push_back(content);
         TreeIter {
             is_pre_order,
+            state: temp_queue,
+        }
+    }
+}
+
+impl<'a, F: Fn(&HTMLContent) -> bool> Iterator for SearchTreeIter<'a, F> {
+    type Item = &'a HTMLContent;
+    fn next(&mut self) -> Option<&'a HTMLContent> {
+        if let Some(node) = self.state.pop_front() {
+            if let HTMLContent::Tag(tag_box) = node { //add children to stack if tag object
+                if self.is_pre_order {
+                    for child in (**tag_box).content.iter().rev() {
+                        if !((self.prune_closure)(child)) {
+                            self.state.push_front(child);
+                        }
+                    }
+                }
+                else {
+                    for child in (**tag_box).content.iter() {
+                        if !((self.prune_closure)(child)) {
+                            self.state.push_back(child);
+                        }
+                    }
+                }
+
+            }
+            return Some(node)
+        }
+        else {
+            None
+        }
+    }
+}
+
+impl<'a, F: Fn(&HTMLContent) -> bool> SearchTreeIter<'a, F> {
+    pub fn new(is_pre_order: bool, prune_closure: F, content: &'a HTMLContent) -> Self {
+        let mut temp_queue = VecDeque::new();
+        if !((prune_closure)(content)) {
+            temp_queue.push_back(content);
+        }
+        SearchTreeIter {
+            is_pre_order,
+            prune_closure,
             state: temp_queue,
         }
     }
