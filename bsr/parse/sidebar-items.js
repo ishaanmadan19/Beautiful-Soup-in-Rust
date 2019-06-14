@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Rule",""]],"fn":[["get_and_parse_html",""],["parse_html","Returns a `ParseTree` that parses the valid HTML."]],"struct":[["HTMLParser",""]]});
